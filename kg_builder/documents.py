@@ -10,7 +10,11 @@ CONVERTED_EXTS = (".pdf", ".docx")
 def build_converter(ocr: bool = False, table_structure: bool = False):
     from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
     from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
+    from docling.document_converter import (
+        DocumentConverter,
+        InputFormat,
+        PdfFormatOption,
+    )
 
     pdf_options = PdfPipelineOptions()
     pdf_options.do_ocr = ocr

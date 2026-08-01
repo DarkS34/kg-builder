@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__KG_TITLE__</title>
+<style>
+/* ── tokens ─────────────────────────────────────────────────────────────────
+   Categorical hues are the documented 8-slot order, stepped per mode. Node fill
+   carries domain identity; because a node-link diagram puts every pair of hues
+   side by side, identity never rests on color alone: nodes are direct-labeled,
+   the layout clusters by domain, the legend isolates one domain in a click, and
+   the details panel names it in text.                                        */
+:root {
+  color-scheme: light;
+  --page:#f4f4f1; --surface:#fcfcfb; --panel:#ffffff; --panel-2:#f4f4f1;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --line:#e1e0d9; --border:rgba(11,11,11,.10); --shadow:rgba(11,11,11,.08);
+  --accent:#2a78d6; --edge:#8f8d86;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948; --s9:#898781;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --panel:#151514; --panel-2:#1f1f1d;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --line:#2c2c2a; --border:rgba(255,255,255,.10); --shadow:rgba(0,0,0,.5);
+  --accent:#3987e5; --edge:#7d7b74;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --s9:#898781;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --panel:#151514; --panel-2:#1f1f1d;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --line:#2c2c2a; --border:rgba(255,255,255,.10); --shadow:rgba(0,0,0,.5);
+    --accent:#3987e5; --edge:#7d7b74;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --s9:#898781;
+  }
+}
+
+*,*::before,*::after { box-sizing:border-box; }
+html,body { height:100%; }
+body {
+  margin:0; background:var(--page); color:var(--ink);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+button,input,select { font:inherit; color:inherit; }
+button { cursor:pointer; background:none; border:none; padding:0; }
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-thumb { background:var(--line); border-radius:6px; border:3px solid transparent; background-clip:content-box; }
+::-webkit-scrollbar-thumb:hover { background:var(--muted); background-clip:content-box; }
+
+#app { display:flex; height:100dvh; width:100vw; }
+
+/* ── sidebar ──────────────────────────────────────────────────────────────── */
+#panel {
+  width:318px; flex:0 0 318px; height:100%; display:flex; flex-direction:column;
+  background:var(--panel); border-right:1px solid var(--border); z-index:3;
+  transition:margin-left .22s cubic-bezier(.4,0,.2,1);
+}
+#panel.collapsed { margin-left:-318px; }
+.p-head { padding:16px 16px 12px; border-bottom:1px solid var(--border); }
+.p-title { font-size:15px; font-weight:650; letter-spacing:-.01em; overflow-wrap:anywhere; }
+.p-sub { margin-top:3px; font-size:11.5px; color:var(--muted); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.badge {
+  display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px;
+  font-weight:600; letter-spacing:.03em; text-transform:uppercase;
+  background:var(--panel-2); color:var(--ink-2); border:1px solid var(--border);
+}
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border-bottom:1px solid var(--border); }
+.stat { background:var(--panel); padding:9px 4px 10px; text-align:center; }
+.stat b { display:block; font-size:17px; font-weight:650; letter-spacing:-.02em; }
+.stat span { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+
+.p-body { flex:1; overflow-y:auto; overscroll-behavior:contain; }
+section { border-bottom:1px solid var(--border); }
+.sec-head {
+  display:flex; align-items:center; gap:8px; width:100%; padding:11px 14px;
+  font-size:10.5px; font-weight:650; letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+}
+.sec-head:hover { color:var(--ink-2); }
+.sec-head .chev { margin-left:auto; transition:transform .18s; font-size:9px; }
+section.closed .chev { transform:rotate(-90deg); }
+section.closed .sec-body { display:none; }
+.sec-body { padding:0 10px 12px; }
+
+.search { position:relative; padding:10px 12px; }
+.search input {
+  width:100%; padding:8px 10px 8px 30px; border-radius:8px; background:var(--panel-2);
+  border:1px solid var(--border); outline:none;
+}
+.search input:focus { border-color:var(--accent); }
+.search svg { position:absolute; left:22px; top:50%; transform:translateY(-50%); color:var(--muted); }
+/* the concept list is the table view of the graph: always reachable, never
+   long enough to push the legends off the panel */
+#results { padding:0 10px 12px; max-height:38vh; overflow-y:auto; overscroll-behavior:contain; border-bottom:1px solid var(--border); }
+
+.row {
+  display:flex; align-items:center; gap:9px; width:100%; padding:6px 8px;
+  border-radius:7px; text-align:left; color:var(--ink-2); line-height:1.3;
+}
+.row:hover { background:var(--panel-2); color:var(--ink); }
+.row.off { opacity:.4; }
+.row.sel { background:var(--panel-2); color:var(--ink); }
+.row .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+.row .ct { font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.row .only {
+  font-size:9.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--muted); opacity:0; padding:2px 5px; border-radius:5px; border:1px solid var(--border);
+}
+.row:hover .only { opacity:1; }
+.row .only:hover { color:var(--accent); border-color:var(--accent); }
+.dot { width:11px; height:11px; border-radius:50%; flex:0 0 11px; }
+.dot.ring { background:none !important; border:2px dashed currentColor; }
+.edge-swatch { width:22px; height:11px; flex:0 0 22px; }
+.hint { padding:4px 8px 0; font-size:11px; color:var(--muted); }
+.more { padding:6px 8px; font-size:11px; color:var(--muted); font-style:italic; }
+
+.ctl { display:flex; align-items:center; gap:8px; padding:5px 8px; font-size:12.5px; color:var(--ink-2); }
+.ctl label { flex:1; }
+.ctl select {
+  background:var(--panel-2); border:1px solid var(--border); border-radius:7px;
+  padding:4px 6px; outline:none; cursor:pointer;
+}
+.switch { position:relative; width:32px; height:18px; flex:0 0 32px; border-radius:999px; background:var(--line); transition:background .18s; }
+.switch::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--panel); transition:transform .18s; box-shadow:0 1px 2px var(--shadow); }
+.switch.on { background:var(--accent); }
+.switch.on::after { transform:translateX(14px); }
+.btn-row { display:flex; gap:6px; padding:6px 8px 0; }
+.btn {
+  flex:1; padding:6px 8px; border-radius:7px; border:1px solid var(--border);
+  background:var(--panel-2); font-size:11.5px; color:var(--ink-2); text-align:center;
+}
+.btn:hover { color:var(--ink); border-color:var(--muted); }
+
+/* ── stage ────────────────────────────────────────────────────────────────── */
+#stage { position:relative; flex:1; min-width:0; background:var(--surface); }
+#view { display:block; width:100%; height:100%; touch-action:none; cursor:grab; }
+#view.grabbing { cursor:grabbing; }
+#view.on-node { cursor:pointer; }
+
+#tip {
+  position:absolute; pointer-events:none; z-index:5; max-width:280px; padding:7px 10px;
+  border-radius:9px; background:var(--panel); border:1px solid var(--border);
+  box-shadow:0 6px 22px var(--shadow); font-size:12.5px; opacity:0; transition:opacity .1s;
+}
+#tip.on { opacity:1; }
+#tip b { display:block; font-weight:600; }
+#tip small { color:var(--muted); }
+
+.float { position:absolute; z-index:4; display:flex; gap:6px; }
+#topbar { top:14px; left:14px; }
+#zoombar { bottom:14px; left:14px; flex-direction:column; }
+.fbtn {
+  width:32px; height:32px; display:grid; place-items:center; border-radius:9px;
+  background:var(--panel); border:1px solid var(--border); color:var(--ink-2);
+  box-shadow:0 2px 8px var(--shadow); font-size:14px;
+}
+.fbtn:hover { color:var(--ink); }
+.fbtn.wide { width:auto; padding:0 11px; font-size:12px; gap:6px; }
+#legend {
+  position:absolute; bottom:14px; right:14px; z-index:4; font-size:11px; color:var(--muted);
+  background:color-mix(in srgb, var(--surface) 82%, transparent); padding:4px 9px; border-radius:8px;
+  backdrop-filter:blur(6px); pointer-events:none;
+}
+
+/* ── details ──────────────────────────────────────────────────────────────── */
+#details {
+  width:320px; flex:0 0 320px; height:100%; display:flex; flex-direction:column;
+  background:var(--panel); border-left:1px solid var(--border); z-index:3;
+  transition:margin-right .22s cubic-bezier(.4,0,.2,1);
+}
+#details.hidden { margin-right:-320px; }
+.d-head { padding:15px 16px 13px; border-bottom:1px solid var(--border); position:relative; }
+.d-name { font-size:16px; font-weight:650; letter-spacing:-.01em; line-height:1.25; padding-right:22px; overflow-wrap:anywhere; }
+.d-close { position:absolute; top:13px; right:13px; color:var(--muted); font-size:15px; line-height:1; }
+.d-close:hover { color:var(--ink); }
+.d-meta { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:11.5px; color:var(--ink-2); }
+.chip { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border); }
+.d-body { flex:1; overflow-y:auto; padding:6px 10px 16px; }
+.rel-group { margin-top:12px; }
+.rel-title { display:flex; align-items:center; gap:7px; padding:0 6px 5px; font-size:11px; color:var(--muted); }
+.rel-title .arrow { color:var(--ink-2); font-weight:700; }
+.d-empty { padding:26px 16px; text-align:center; color:var(--muted); font-size:12.5px; }
+kbd {
+  font:inherit; font-size:10.5px; padding:1px 5px; border-radius:5px;
+  background:var(--panel-2); border:1px solid var(--border); color:var(--ink-2);
+}
+
+@media (max-width:900px) {
+  #panel { position:absolute; inset:0 auto 0 0; box-shadow:0 0 30px var(--shadow); }
+  #details { position:absolute; inset:0 0 0 auto; box-shadow:0 0 30px var(--shadow); }
+}
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <div class="p-head">
+      <div class="p-title" id="ttl"></div>
+      <div class="p-sub" id="sub"></div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="p-body">
+      <div class="search">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="q" type="search" placeholder="Search concepts…  ( / )" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="results"></div>
+      <section id="sec-rel"><button class="sec-head">Relations <span class="chev">▼</span></button><div class="sec-body" id="rels"></div></section>
+      <section id="sec-grp"><button class="sec-head"><span id="grp-noun">Domains</span> <span class="chev">▼</span></button><div class="sec-body" id="grps"></div></section>
+      <section id="sec-cfg"><button class="sec-head">Display <span class="chev">▼</span></button><div class="sec-body" id="cfg"></div></section>
+    </div>
+  </aside>
+
+  <div id="stage">
+    <canvas id="view"></canvas>
+    <div id="tip"></div>
+    <div class="float" id="topbar">
+      <button class="fbtn" id="toggle-panel" title="Toggle sidebar (S)">☰</button>
+      <button class="fbtn wide" id="fit" title="Fit to screen (F)">Fit</button>
+      <button class="fbtn" id="theme" title="Light / dark theme">◐</button>
+      <button class="fbtn" id="png" title="Export PNG">↧</button>
+    </div>
+    <div class="float" id="zoombar">
+      <button class="fbtn" id="zin" title="Zoom in">+</button>
+      <button class="fbtn" id="zout" title="Zoom out">−</button>
+    </div>
+    <div id="legend"></div>
+  </div>
+
+  <aside id="details" class="hidden">
+    <div class="d-head"><div class="d-name" id="d-name"></div><button class="d-close" id="d-close">✕</button><div class="d-meta" id="d-meta"></div></div>
+    <div class="d-body" id="d-body"></div>
+  </aside>
+</div>
+
+<script type="application/json" id="kg-data">__KG_DATA__</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("kg-data").textContent);
+
+/* ── model ────────────────────────────────────────────────────────────────── */
+const N = DATA.nodes.length, M = DATA.links.length;
+const R = DATA.relations, G = DATA.groups;
+const name = DATA.nodes.map(n => n[0]);
+const grp = Int32Array.from(DATA.nodes, n => n[1]);
+const generic = Uint8Array.from(DATA.nodes, n => n[2]);
+const lS = new Int32Array(M), lT = new Int32Array(M), lR = new Int32Array(M);
+for (let i = 0; i < M; i++) { const l = DATA.links[i]; lS[i] = l[0]; lT[i] = l[1]; lR[i] = l[2]; }
+
+const deg = new Int32Array(N), degIn = new Int32Array(N), degOut = new Int32Array(N);
+for (let i = 0; i < M; i++) { deg[lS[i]]++; deg[lT[i]]++; degOut[lS[i]]++; degIn[lT[i]]++; }
+
+// Adjacency in CSR form: one pass to count, one to fill. Used by hover focus,
+// by the details panel and by the link force, so it is worth the compactness.
+const adjOff = new Int32Array(N + 1);
+for (let i = 0; i < M; i++) { adjOff[lS[i] + 1]++; adjOff[lT[i] + 1]++; }
+for (let i = 0; i < N; i++) adjOff[i + 1] += adjOff[i];
+const adjN = new Int32Array(2 * M), adjL = new Int32Array(2 * M), adjD = new Int8Array(2 * M);
+{
+  const cur = adjOff.slice(0, N);
+  for (let i = 0; i < M; i++) {
+    const s = lS[i], t = lT[i];
+    adjN[cur[s]] = t; adjL[cur[s]] = i; adjD[cur[s]++] = 1;
+    adjN[cur[t]] = s; adjL[cur[t]] = i; adjD[cur[t]++] = -1;
+  }
+}
+const linksByRel = R.map(() => []);
+for (let i = 0; i < M; i++) linksByRel[lR[i]].push(i);
+linksByRel.forEach((a, i) => linksByRel[i] = Int32Array.from(a));
+
+const radius = new Float32Array(N);
+for (let i = 0; i < N; i++) radius[i] = Math.min(23, 4.6 + 2.35 * Math.sqrt(deg[i]));
+let maxR = 6; for (let i = 0; i < N; i++) maxR = Math.max(maxR, radius[i]);
+// The best-connected ~8% carry the graph's structure; their labels get the
+// heavier step so the map has a visible hierarchy at a glance.
+const hubCut = (() => {
+  const sorted = Array.from(deg).sort((a, b) => b - a);
+  return Math.max(3, sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .08))] || 3);
+})();
+
+const DASH = [[], [7, 5], [2, 4], [12, 4, 2, 4], [4, 3], [9, 3, 2, 3], [1, 3], [14, 5]];
+const relDash = R.map((_, i) => DASH[i % DASH.length]);
+
+/* ── theme ────────────────────────────────────────────────────────────────── */
+const C = {};
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = k => cs.getPropertyValue(k).trim();
+  C.surface = v("--surface"); C.ink = v("--ink"); C.ink2 = v("--ink-2");
+  C.muted = v("--muted"); C.line = v("--line"); C.accent = v("--accent"); C.edge = v("--edge");
+  C.series = [1,2,3,4,5,6,7,8,9].map(i => v("--s" + i));
+  C.node = G.map((_, i) => C.series[Math.min(i, 8)]);
+  C.rel = R.map((_, i) => C.series[Math.min(i, 8)]);
+  C.relSoft = C.rel.map(c => mix(c, C.surface, .34));
+  C.dark = luma(C.surface) < .4;
+}
+function hex(c) { const h = c.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); }
+function luma(c) { const [r, g, b] = hex(c); return (.2126 * r + .7152 * g + .0722 * b) / 255; }
+function mix(a, b, t) {
+  const x = hex(a), y = hex(b);
+  return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+function rgba(c, a) { const [r, g, b] = hex(c); return `rgba(${r},${g},${b},${a})`; }
+
+/* ── layout state ─────────────────────────────────────────────────────────── */
+const X = new Float32Array(N), Y = new Float32Array(N);
+const VX = new Float32Array(N), VY = new Float32Array(N);
+const pinned = new Uint8Array(N);
+const anchorX = new Float32Array(G.length), anchorY = new Float32Array(G.length);
+
+let seed = 20260801;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+
+function seedLayout() {
+  const spread = Math.max(260, Math.sqrt(N) * 46);
+  for (let g = 0; g < G.length; g++) {
+    const a = (g / G.length) * Math.PI * 2 - Math.PI / 2;
+    anchorX[g] = Math.cos(a) * spread; anchorY[g] = Math.sin(a) * spread;
+  }
+  for (let i = 0; i < N; i++) {
+    const g = grp[i], t = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * spread * .52;
+    X[i] = anchorX[g] + Math.cos(t) * rr; Y[i] = anchorY[g] + Math.sin(t) * rr;
+    VX[i] = VY[i] = 0;
+  }
+}
+
+/* ── filters ──────────────────────────────────────────────────────────────── */
+const relOn = R.map(() => true), grpOn = G.map(() => true);
+const nodeOn = new Uint8Array(N).fill(1), linkOn = new Uint8Array(M).fill(1);
+let liveNodes = [], liveLinks = 0;
+
+function applyFilters() {
+  liveNodes = [];
+  for (let i = 0; i < N; i++) { nodeOn[i] = grpOn[grp[i]] ? 1 : 0; if (nodeOn[i]) liveNodes.push(i); }
+  liveLinks = 0;
+  for (let i = 0; i < M; i++) {
+    linkOn[i] = relOn[lR[i]] && nodeOn[lS[i]] && nodeOn[lT[i]] ? 1 : 0;
+    liveLinks += linkOn[i];
+  }
+}
+
+/* ── force simulation ─────────────────────────────────────────────────────── */
+// Velocity-Verlet integration with a Barnes-Hut approximation for the n-body
+// repulsion: O(n log n) per tick, so a few thousand concepts still settle
+// interactively instead of quadratically melting the main thread.
+const SIM = { alpha: 1, target: 0, decay: .0228, min: .0012, vDecay: .62, theta2: .81, charge: -52, dist: 32, gravity: .11, cluster: true };
+
+let qCap = 0, qChild, qBody, qMass, qMX, qMY, qHW, qUsed = 0;
+const qStack = new Int32Array(4096);
+function growTree(cap) {
+  qCap = cap;
+  qChild = new Int32Array(cap * 4); qBody = new Int32Array(cap);
+  qMass = new Float32Array(cap); qMX = new Float32Array(cap); qMY = new Float32Array(cap);
+  qHW = new Float32Array(cap);
+}
+function qAlloc(hw) {
+  if (qUsed >= qCap) {
+    const oc = qChild, ob = qBody, om = qMass, ox = qMX, oy = qMY, oh = qHW, n = qCap;
+    growTree(qCap * 2);
+    qChild.set(oc); qBody.set(ob); qMass.set(om); qMX.set(ox); qMY.set(oy); qHW.set(oh);
+    qChild.fill(-1, n * 4);
+  }
+  const c = qUsed++;
+  qChild[c * 4] = qChild[c * 4 + 1] = qChild[c * 4 + 2] = qChild[c * 4 + 3] = -1;
+  qBody[c] = -1; qMass[c] = 0; qMX[c] = 0; qMY[c] = 0; qHW[c] = hw;
+  return c;
+}
+let rootCX = 0, rootCY = 0, rootHW = 1;
+
+function buildTree() {
+  if (!qCap) growTree(Math.max(64, 4 * N));
+  qUsed = 0;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const i of liveNodes) {
+    if (X[i] < x0) x0 = X[i]; if (X[i] > x1) x1 = X[i];
+    if (Y[i] < y0) y0 = Y[i]; if (Y[i] > y1) y1 = Y[i];
+  }
+  if (!isFinite(x0)) return false;
+  rootCX = (x0 + x1) / 2; rootCY = (y0 + y1) / 2;
+  rootHW = Math.max(x1 - x0, y1 - y0) / 2 + 1;
+  qAlloc(rootHW);
+  for (const i of liveNodes) insert(0, i, rootCX, rootCY, rootHW, 0);
+  return true;
+}
+function insert(cell, i, cx, cy, hw, depth) {
+  if (qBody[cell] === -1 && qMass[cell] === 0) {
+    qBody[cell] = i; qMass[cell] = 1; qMX[cell] = X[i]; qMY[cell] = Y[i];
+    return;
+  }
+  if (qBody[cell] !== -1) {
+    const j = qBody[cell];
+    qBody[cell] = -1;
+    if (depth < 26) push(cell, j, cx, cy, hw, depth);
+    else { qMX[cell] += X[i]; qMY[cell] += Y[i]; qMass[cell]++; return; }
+  }
+  qMX[cell] += X[i]; qMY[cell] += Y[i]; qMass[cell]++;
+  push(cell, i, cx, cy, hw, depth);
+}
+function push(cell, i, cx, cy, hw, depth) {
+  const q = (X[i] >= cx ? 1 : 0) | (Y[i] >= cy ? 2 : 0);
+  const nhw = hw / 2;
+  let c = qChild[cell * 4 + q];
+  if (c === -1) { c = qAlloc(nhw); qChild[cell * 4 + q] = c; }
+  insert(c, i, cx + (q & 1 ? nhw : -nhw), cy + (q & 2 ? nhw : -nhw), nhw, depth + 1);
+}
+function repel(i, k) {
+  let sp = 0; qStack[sp++] = 0;
+  while (sp) {
+    const c = qStack[--sp], m = qMass[c];
+    if (m === 0) continue;
+    let dx = qMX[c] / m - X[i], dy = qMY[c] / m - Y[i], d2 = dx * dx + dy * dy;
+    if (d2 < 1) { dx = rnd() - .5; dy = rnd() - .5; d2 = Math.max(dx * dx + dy * dy, .01); }
+    const leaf = qBody[c] !== -1;
+    if (leaf || (qHW[c] * qHW[c] * 4) / d2 < SIM.theta2) {
+      if (leaf && qBody[c] === i) continue;
+      const f = k * m / Math.max(d2, 25);
+      VX[i] += dx * f; VY[i] += dy * f;
+      continue;
+    }
+    for (let q = 0; q < 4; q++) { const ch = qChild[c * 4 + q]; if (ch !== -1) qStack[sp++] = ch; }
+  }
+}
+
+// Uniform bucket grid, rebuilt per tick: collision resolution and cursor
+// hit-testing both need the same neighbour lookup.
+let gw = 1, gh = 1, gx0 = 0, gy0 = 0, gcs = 40;
+let gStart = new Int32Array(2), gItems = new Int32Array(N);
+function buildGrid() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const i of liveNodes) {
+    if (X[i] < x0) x0 = X[i]; if (X[i] > x1) x1 = X[i];
+    if (Y[i] < y0) y0 = Y[i]; if (Y[i] > y1) y1 = Y[i];
+  }
+  if (!isFinite(x0)) { gw = gh = 1; gStart = new Int32Array(2); return; }
+  gcs = maxR * 2.6 + 8; gx0 = x0 - gcs; gy0 = y0 - gcs;
+  gw = Math.max(1, Math.min(2048, Math.ceil((x1 - x0) / gcs) + 3));
+  gh = Math.max(1, Math.min(2048, Math.ceil((y1 - y0) / gcs) + 3));
+  const cells = gw * gh;
+  if (gStart.length < cells + 1) gStart = new Int32Array(cells + 1); else gStart.fill(0, 0, cells + 1);
+  const cellOf = i => Math.min(gh - 1, Math.max(0, (Y[i] - gy0) / gcs | 0)) * gw
+                    + Math.min(gw - 1, Math.max(0, (X[i] - gx0) / gcs | 0));
+  for (const i of liveNodes) gStart[cellOf(i) + 1]++;
+  for (let c = 0; c < cells; c++) gStart[c + 1] += gStart[c];
+  const cur = gStart.slice(0, cells);
+  for (const i of liveNodes) gItems[cur[cellOf(i)]++] = i;
+}
+function collide() {
+  for (const i of liveNodes) {
+    const cx = Math.min(gw - 1, Math.max(0, (X[i] - gx0) / gcs | 0));
+    const cy = Math.min(gh - 1, Math.max(0, (Y[i] - gy0) / gcs | 0));
+    for (let yy = Math.max(0, cy - 1); yy <= Math.min(gh - 1, cy + 1); yy++)
+      for (let xx = Math.max(0, cx - 1); xx <= Math.min(gw - 1, cx + 1); xx++) {
+        const c = yy * gw + xx;
+        for (let p = gStart[c]; p < gStart[c + 1]; p++) {
+          const j = gItems[p];
+          if (j <= i) continue;
+          let dx = X[j] - X[i], dy = Y[j] - Y[i];
+          let d2 = dx * dx + dy * dy;
+          const rr = radius[i] + radius[j] + 4;
+          if (d2 >= rr * rr) continue;
+          if (d2 === 0) { dx = rnd() - .5; dy = rnd() - .5; d2 = dx * dx + dy * dy; }
+          const d = Math.sqrt(d2), push = (rr - d) / d * .5;
+          const mx = dx * push, my = dy * push;
+          if (!pinned[i]) { X[i] -= mx; Y[i] -= my; }
+          if (!pinned[j]) { X[j] += mx; Y[j] += my; }
+        }
+      }
+  }
+}
+function tick() {
+  SIM.alpha += (SIM.target - SIM.alpha) * SIM.decay;
+  const a = SIM.alpha;
+  if (!buildTree()) return;
+  for (const i of liveNodes) repel(i, SIM.charge * a * (1 + radius[i] * .35));
+
+  for (let l = 0; l < M; l++) {
+    if (!linkOn[l]) continue;
+    const s = lS[l], t = lT[l];
+    let dx = X[t] + VX[t] - X[s] - VX[s], dy = Y[t] + VY[t] - Y[s] - VY[s];
+    let d = Math.hypot(dx, dy) || 1e-6;
+    const want = SIM.dist + radius[s] + radius[t];
+    const bias = deg[s] / (deg[s] + deg[t] || 1);
+    const k = (d - want) / d * a * .45;
+    dx *= k; dy *= k;
+    if (!pinned[t]) { VX[t] -= dx * (1 - bias); VY[t] -= dy * (1 - bias); }
+    if (!pinned[s]) { VX[s] += dx * bias; VY[s] += dy * bias; }
+  }
+  for (const i of liveNodes) {
+    const g = SIM.cluster ? SIM.gravity : SIM.gravity * .5;
+    const tx = SIM.cluster ? anchorX[grp[i]] : 0, ty = SIM.cluster ? anchorY[grp[i]] : 0;
+    VX[i] += (tx - X[i]) * g * a; VY[i] += (ty - Y[i]) * g * a;
+    if (pinned[i]) { VX[i] = VY[i] = 0; continue; }
+    X[i] += (VX[i] *= SIM.vDecay); Y[i] += (VY[i] *= SIM.vDecay);
+  }
+  buildGrid();
+  collide();
+}
+
+/* ── camera ───────────────────────────────────────────────────────────────── */
+const cv = document.getElementById("view"), ctx = cv.getContext("2d", { alpha: false });
+let W = 0, H = 0, dpr = 1, k = 1, tx = 0, ty = 0;
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h || (w === W && h === H)) return;
+  W = w; H = h;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  if (!userCam) fit(false); else draw();
+}
+function fit(animate = true) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const i of liveNodes) {
+    x0 = Math.min(x0, X[i] - radius[i]); x1 = Math.max(x1, X[i] + radius[i]);
+    y0 = Math.min(y0, Y[i] - radius[i]); y1 = Math.max(y1, Y[i] + radius[i]);
+  }
+  if (!isFinite(x0)) return;
+  const pad = 60;
+  const nk = Math.min(3, Math.max(.04, Math.min((W - pad * 2) / (x1 - x0 || 1), (H - pad * 2) / (y1 - y0 || 1))));
+  moveTo(nk, W / 2 - (x0 + x1) / 2 * nk, H / 2 - (y0 + y1) / 2 * nk, animate);
+}
+let cam = null;
+function moveTo(nk, ntx, nty, animate) {
+  if (!animate || reduceMotion) { k = nk; tx = ntx; ty = nty; draw(); return; }
+  cam = { k0: k, tx0: tx, ty0: ty, k1: nk, tx1: ntx, ty1: nty, t0: performance.now(), ms: 420 };
+  kick(0);
+}
+function centerOn(i, zoom) {
+  const nk = zoom || Math.max(k, 1.1);
+  userCam = true;
+  moveTo(nk, W / 2 - X[i] * nk, H / 2 - Y[i] * nk, true);
+}
+function zoomBy(f, px = W / 2, py = H / 2) {
+  userCam = true;
+  const nk = Math.min(8, Math.max(.03, k * f));
+  moveTo(nk, px - (px - tx) * nk / k, py - (py - ty) * nk / k, false);
+}
+
+/* ── selection & focus ────────────────────────────────────────────────────── */
+let hover = -1, selected = -1, matches = null;
+const inFocus = new Uint8Array(N), focusLink = new Uint8Array(M);
+let focusOn = false;
+
+function setFocus(i) {
+  focusOn = i >= 0;
+  inFocus.fill(0); focusLink.fill(0);
+  if (!focusOn) return;
+  inFocus[i] = 1;
+  for (let p = adjOff[i]; p < adjOff[i + 1]; p++) {
+    if (!linkOn[adjL[p]] || !nodeOn[adjN[p]]) continue;
+    inFocus[adjN[p]] = 1; focusLink[adjL[p]] = 1;
+  }
+}
+function focusTarget() { return selected >= 0 ? selected : hover; }
+function refreshFocus() { setFocus(focusTarget()); }
+
+/* ── drawing ──────────────────────────────────────────────────────────────── */
+const SX = new Float32Array(N), SY = new Float32Array(N);
+let labelGrid = new Int32Array(0), labelCols = 0, labelRows = 0, labelStamp = 0;
+const LBL = 26;
+let labelMode = "auto", showArrows = true;
+
+function draw() {
+  if (!W) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = C.surface;
+  ctx.fillRect(0, 0, W, H);
+  paint(ctx, true);
+}
+
+function paint(g, screen) {
+  const pad = 80;
+  for (const i of liveNodes) { SX[i] = X[i] * k + tx; SY[i] = Y[i] * k + ty; }
+  const dim = focusOn ? (C.dark ? .16 : .2) : 1;
+
+  // edges — one path per relation type keeps state changes to O(types)
+  const arrowsWorth = showArrows && k > .5 && (liveLinks < 6000 || focusOn);
+  for (let r = 0; r < R.length; r++) {
+    if (!relOn[r]) continue;
+    const ids = linksByRel[r];
+    g.lineWidth = Math.min(2.4, .85 + k * .3);
+    g.setLineDash(relDash[r].map(v => v * Math.min(1.6, Math.max(.6, k))));
+    g.strokeStyle = rgba(C.relSoft[r], (focusOn ? .55 : .78) * dim);
+    g.beginPath();
+    let any = false;
+    for (let p = 0; p < ids.length; p++) {
+      const l = ids[p];
+      if (!linkOn[l] || focusLink[l]) continue;
+      const s = lS[l], t = lT[l];
+      if ((SX[s] < -pad && SX[t] < -pad) || (SX[s] > W + pad && SX[t] > W + pad) ||
+          (SY[s] < -pad && SY[t] < -pad) || (SY[s] > H + pad && SY[t] > H + pad)) continue;
+      g.moveTo(SX[s], SY[s]); g.lineTo(SX[t], SY[t]); any = true;
+    }
+    if (any) g.stroke();
+    if (arrowsWorth && R[r].directed && !focusOn) {
+      g.setLineDash([]); g.fillStyle = rgba(C.relSoft[r], .85 * dim);
+      g.beginPath();
+      for (let p = 0; p < ids.length; p++) { const l = ids[p]; if (linkOn[l] && !focusLink[l]) arrow(g, l); }
+      g.fill();
+    }
+  }
+  g.setLineDash([]);
+
+  // nodes — batched by fill colour, ringed in the surface colour so overlaps read
+  for (let gi = 0; gi < G.length; gi++) {
+    if (!grpOn[gi]) continue;
+    g.beginPath();
+    let any = false;
+    for (const i of liveNodes) {
+      if (grp[i] !== gi) continue;
+      const rr = Math.max(1.4, radius[i] * k);
+      if (SX[i] < -rr - 2 || SX[i] > W + rr + 2 || SY[i] < -rr - 2 || SY[i] > H + rr + 2) continue;
+      if (focusOn && inFocus[i]) continue;
+      g.moveTo(SX[i] + rr, SY[i]); g.arc(SX[i], SY[i], rr, 0, 6.2832); any = true;
+    }
+    if (!any) continue;
+    g.globalAlpha = dim;
+    g.fillStyle = C.node[gi]; g.fill();
+    g.globalAlpha = 1;
+    if (k > .35) { g.lineWidth = 1.6; g.strokeStyle = rgba(C.surface, dim); g.stroke(); }
+  }
+
+  // focused subgraph on top, at full strength
+  if (focusOn) {
+    const centre = focusTarget();
+    for (let r = 0; r < R.length; r++) {
+      if (!relOn[r]) continue;
+      g.lineWidth = Math.min(3.2, 1.5 + k * .35);
+      g.setLineDash(relDash[r].map(v => v * Math.min(1.6, Math.max(.6, k))));
+      g.strokeStyle = rgba(C.rel[r], .95);
+      g.beginPath();
+      let any = false;
+      for (const l of linksByRel[r]) if (focusLink[l]) { g.moveTo(SX[lS[l]], SY[lS[l]]); g.lineTo(SX[lT[l]], SY[lT[l]]); any = true; }
+      if (any) g.stroke();
+      if (showArrows && R[r].directed) {
+        g.setLineDash([]); g.fillStyle = rgba(C.rel[r], .95); g.beginPath();
+        for (const l of linksByRel[r]) if (focusLink[l]) arrow(g, l);
+        g.fill();
+      }
+    }
+    g.setLineDash([]);
+    for (let gi = 0; gi < G.length; gi++) {
+      g.beginPath();
+      let any = false;
+      for (const i of liveNodes) {
+        if (grp[i] !== gi || !inFocus[i]) continue;
+        const rr = Math.max(2, radius[i] * k);
+        g.moveTo(SX[i] + rr, SY[i]); g.arc(SX[i], SY[i], rr, 0, 6.2832); any = true;
+      }
+      if (!any) continue;
+      g.fillStyle = C.node[gi]; g.fill();
+      g.lineWidth = 1.8; g.strokeStyle = C.surface; g.stroke();
+    }
+    if (centre >= 0) ring(g, centre, C.ink, 2.6);
+  }
+
+  // rings: generic concepts, search matches, selection
+  for (const i of liveNodes) {
+    if (!generic[i] || (focusOn && !inFocus[i])) continue;
+    const rr = Math.max(2, radius[i] * k) + 3;
+    g.setLineDash([2, 2.5]); g.lineWidth = 1.3;
+    g.strokeStyle = rgba(C.muted, focusOn && !inFocus[i] ? .3 : .85);
+    g.beginPath(); g.arc(SX[i], SY[i], rr, 0, 6.2832); g.stroke();
+  }
+  g.setLineDash([]);
+  if (matches) for (const i of matches) if (nodeOn[i]) ring(g, i, C.accent, 2.2, 4);
+  if (selected >= 0 && nodeOn[selected]) ring(g, selected, C.ink, 2.6, 3);
+  if (hover >= 0 && hover !== selected && nodeOn[hover]) ring(g, hover, C.ink2, 2, 3);
+
+  if (labelMode !== "none") labels(g);
+}
+function ring(g, i, colour, w, extra = 3) {
+  const rr = Math.max(2, radius[i] * k) + extra;
+  g.beginPath(); g.arc(SX[i], SY[i], rr, 0, 6.2832);
+  g.lineWidth = w; g.strokeStyle = colour; g.stroke();
+}
+function arrow(g, l) {
+  const s = lS[l], t = lT[l];
+  let dx = SX[t] - SX[s], dy = SY[t] - SY[s];
+  const d = Math.hypot(dx, dy);
+  if (d < 6) return;
+  dx /= d; dy /= d;
+  const off = Math.max(2, radius[t] * k) + 1.5;
+  const hx = SX[t] - dx * off, hy = SY[t] - dy * off;
+  const a = Math.min(9, 4.5 + k * 2.2), b = a * .5;
+  g.moveTo(hx, hy);
+  g.lineTo(hx - dx * a + -dy * b, hy - dy * a + dx * b);
+  g.lineTo(hx - dx * a + dy * b, hy - dy * a - dx * b);
+}
+// Labels are placed greedily by importance into a screen-space occupancy grid,
+// so the dense middle of the graph never turns into stacked text.
+function labels(g) {
+  const cols = Math.ceil(W / LBL) + 1, rows = Math.ceil(H / LBL) + 1;
+  if (labelCols !== cols || labelRows !== rows) {
+    labelCols = cols; labelRows = rows; labelGrid = new Int32Array(cols * rows); labelStamp = 0;
+  }
+  labelStamp++;
+  const fs = Math.max(10, Math.min(15, 9 + k * 2.4));
+  const font = (big) => `${big ? 650 : 500} ${(big ? fs * 1.22 : fs).toFixed(1)}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+  let bigFont = null;
+  g.font = font(false);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineJoin = "round";
+
+  const order = [];
+  for (const i of liveNodes) {
+    if (SX[i] < -30 || SX[i] > W + 30 || SY[i] < -20 || SY[i] > H + 20) continue;
+    let pri = deg[i];
+    if (focusOn) pri = inFocus[i] ? pri + 1e6 : pri - 1e5;
+    if (matches && matches.has(i)) pri += 5e5;
+    if (i === selected || i === hover) pri += 9e6;
+    order.push([pri, i]);
+  }
+  order.sort((a, b) => b[0] - a[0]);
+  const limit = labelMode === "all" ? 1500 : 190;
+  let drawn = 0;
+  for (const [pri, i] of order) {
+    if (drawn >= limit) break;
+    const strong = i === selected || i === hover || (focusOn && inFocus[i]) || (matches && matches.has(i));
+    // Auto mode labels the best-connected concepts first and lets the occupancy
+    // grid decide where it stops — a zoom threshold alone leaves the map mute.
+    if (labelMode === "auto" && !strong && radius[i] * k < 3.4) continue;
+    if (focusOn && !inFocus[i] && labelMode !== "all") continue;
+    const big = deg[i] >= hubCut;
+    if (big !== bigFont) { g.font = font(big); bigFont = big; }
+    const w = g.measureText(name[i]).width;
+    const y = SY[i] + Math.max(2, radius[i] * k) + fs * .82;
+    const c0 = Math.max(0, (SX[i] - w / 2) / LBL | 0), c1 = Math.min(cols - 1, (SX[i] + w / 2) / LBL | 0);
+    const r0 = Math.max(0, (y - fs / 2) / LBL | 0), r1 = Math.min(rows - 1, (y + fs / 2) / LBL | 0);
+    let free = true;
+    for (let r = r0; r <= r1 && free; r++) for (let c = c0; c <= c1; c++)
+      if (labelGrid[r * cols + c] === labelStamp) { free = false; break; }
+    // Only the node under the cursor or in the details panel may overlap; every
+    // other label yields, or the focused neighbourhood stacks its text.
+    if (!free && i !== selected && i !== hover) continue;
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) labelGrid[r * cols + c] = labelStamp;
+    g.lineWidth = 3.2; g.strokeStyle = rgba(C.surface, .92);
+    g.strokeText(name[i], SX[i], y);
+    g.fillStyle = strong ? C.ink : C.ink2;
+    g.fillText(name[i], SX[i], y);
+    drawn++;
+  }
+}
+
+/* ── loop ─────────────────────────────────────────────────────────────────── */
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let raf = 0, idleFrames = 0, framed = false, userCam = false;
+function kick(alpha = .5) {
+  if (alpha) SIM.alpha = Math.max(SIM.alpha, alpha);
+  idleFrames = 0;
+  if (!raf) raf = requestAnimationFrame(loop);
+}
+function loop(now) {
+  raf = 0;
+  if (cam) {
+    const t = Math.min(1, (now - cam.t0) / cam.ms), e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    k = cam.k0 + (cam.k1 - cam.k0) * e; tx = cam.tx0 + (cam.tx1 - cam.tx0) * e; ty = cam.ty0 + (cam.ty1 - cam.ty0) * e;
+    if (t >= 1) cam = null;
+  }
+  const busy = SIM.alpha > SIM.min || SIM.target > 0;
+  if (busy) tick();
+  // The layout keeps expanding after the first fit; re-frame it once it stops,
+  // unless the viewer has already taken control of the camera.
+  else if (!framed && !userCam) { framed = true; fit(false); }
+  draw();
+  if (busy || cam) { raf = requestAnimationFrame(loop); idleFrames = 0; }
+  else if (idleFrames++ < 2) raf = requestAnimationFrame(loop);
+}
+function settle(n) { for (let i = 0; i < n; i++) tick(); }
+
+/* ── pointer ──────────────────────────────────────────────────────────────── */
+const tip = document.getElementById("tip");
+let drag = null, pointers = new Map(), pinchD = 0;
+
+function pick(px, py) {
+  const wx = (px - tx) / k, wy = (py - ty) / k;
+  const cx = Math.min(gw - 1, Math.max(0, (wx - gx0) / gcs | 0));
+  const cy = Math.min(gh - 1, Math.max(0, (wy - gy0) / gcs | 0));
+  let best = -1, bestD = Infinity;
+  for (let yy = Math.max(0, cy - 1); yy <= Math.min(gh - 1, cy + 1); yy++)
+    for (let xx = Math.max(0, cx - 1); xx <= Math.min(gw - 1, cx + 1); xx++) {
+      const c = yy * gw + xx;
+      for (let p = gStart[c]; p < gStart[c + 1]; p++) {
+        const i = gItems[p];
+        const d = Math.hypot(X[i] - wx, Y[i] - wy), rr = radius[i] + 6 / k;
+        if (d < rr && d < bestD) { bestD = d; best = i; }
+      }
+    }
+  return best;
+}
+cv.addEventListener("pointerdown", e => {
+  cv.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, [e.offsetX, e.offsetY]);
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinchD = Math.hypot(a[0] - b[0], a[1] - b[1]); return; }
+  const i = pick(e.offsetX, e.offsetY);
+  drag = i >= 0
+    ? { node: i, dx: X[i] - (e.offsetX - tx) / k, dy: Y[i] - (e.offsetY - ty) / k, moved: false }
+    : { pan: true, x: e.offsetX, y: e.offsetY, tx, ty, moved: false };
+  if (i >= 0) { pinned[i] = 1; SIM.target = .25; kick(.35); }
+  cv.classList.add("grabbing");
+});
+cv.addEventListener("pointermove", e => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [e.offsetX, e.offsetY]);
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinchD) zoomBy(d / pinchD, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    pinchD = d; return;
+  }
+  if (drag) {
+    drag.moved = true;
+    if (drag.pan) { userCam = true; tx = drag.tx + e.offsetX - drag.x; ty = drag.ty + e.offsetY - drag.y; draw(); }
+    else {
+      X[drag.node] = (e.offsetX - tx) / k + drag.dx; Y[drag.node] = (e.offsetY - ty) / k + drag.dy;
+      VX[drag.node] = VY[drag.node] = 0; kick(.3);
+    }
+    hideTip(); return;
+  }
+  const i = pick(e.offsetX, e.offsetY);
+  cv.classList.toggle("on-node", i >= 0);
+  if (i !== hover) {
+    hover = i;
+    if (selected < 0) refreshFocus();
+    draw();
+  }
+  if (i >= 0) showTip(i, e.offsetX, e.offsetY); else hideTip();
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchD = 0;
+  cv.classList.remove("grabbing");
+  if (!drag) return;
+  if (drag.node !== undefined) {
+    pinned[drag.node] = 0;
+    SIM.target = 0;
+    if (!drag.moved) select(drag.node);
+    kick(.15);
+  } else if (!drag.moved) select(-1);
+  drag = null;
+}
+cv.addEventListener("pointerup", endPointer);
+cv.addEventListener("pointercancel", endPointer);
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  zoomBy(Math.exp(-e.deltaY * (e.deltaMode === 1 ? .05 : .0016)), e.offsetX, e.offsetY);
+}, { passive: false });
+cv.addEventListener("dblclick", e => { const i = pick(e.offsetX, e.offsetY); if (i >= 0) centerOn(i, Math.max(k, 1.6)); });
+
+function showTip(i, px, py) {
+  const g = G[grp[i]];
+  tip.innerHTML = `<b></b><small></small>`;
+  tip.firstChild.textContent = name[i];
+  tip.lastChild.textContent = `${g.name} · ${deg[i]} link${deg[i] === 1 ? "" : "s"} (${degOut[i]}↗ ${degIn[i]}↘)`;
+  tip.classList.add("on");
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(W - r.width - 8, px + 16) + "px";
+  tip.style.top = Math.max(6, py - r.height - 12) + "px";
+}
+function hideTip() { tip.classList.remove("on"); }
+
+/* ── details panel ────────────────────────────────────────────────────────── */
+const dEl = document.getElementById("details");
+function select(i) {
+  selected = i;
+  refreshFocus();
+  renderDetails();
+  renderResults();
+  draw();
+}
+function renderDetails() {
+  if (selected < 0) { dEl.classList.add("hidden"); return; }
+  const i = selected, g = G[grp[i]];
+  document.getElementById("d-name").textContent = name[i];
+  const meta = document.getElementById("d-meta");
+  meta.innerHTML = "";
+  meta.append(chip(g.name, C.node[grp[i]]), chip(`${deg[i]} links · ${degOut[i]} out · ${degIn[i]} in`));
+  if (generic[i]) meta.append(chip("generic — not taggable"));
+
+  const body = document.getElementById("d-body");
+  body.innerHTML = "";
+  // A symmetric relation has no inverse to speak of: both ends go in one bucket.
+  const buckets = R.map(() => ({ out: [], in: [] }));
+  for (let p = adjOff[i]; p < adjOff[i + 1]; p++) {
+    const l = adjL[p];
+    if (!linkOn[l] || !nodeOn[adjN[p]]) continue;
+    const r = lR[l];
+    buckets[r][adjD[p] === 1 || !R[r].directed ? "out" : "in"].push(adjN[p]);
+  }
+  let any = false;
+  R.forEach((rel, ri) => {
+    for (const dir of ["out", "in"]) {
+      const list = [...new Set(buckets[ri][dir])];
+      if (!list.length) continue;
+      any = true;
+      const wrap = document.createElement("div");
+      wrap.className = "rel-group";
+      const t = document.createElement("div");
+      t.className = "rel-title";
+      const sw = document.createElement("span");
+      sw.className = "edge-swatch";
+      sw.append(edgeSwatch(ri));
+      const label = rel.directed
+        ? (dir === "out" ? `${rel.verbose} →` : `← ${rel.verbose} (inverse)`)
+        : rel.verbose;
+      t.append(sw, Object.assign(document.createElement("span"), { textContent: label }),
+               Object.assign(document.createElement("span"), { textContent: list.length, className: "ct", style: "margin-left:auto" }));
+      wrap.append(t);
+      list.sort((a, b) => deg[b] - deg[a]).forEach(j => wrap.append(nodeRow(j)));
+      body.append(wrap);
+    }
+  });
+  if (!any) body.innerHTML = `<div class="d-empty">No visible relations for this concept.<br><small>Filters may be hiding them.</small></div>`;
+  dEl.classList.remove("hidden");
+}
+function chip(text, colour) {
+  const c = document.createElement("span");
+  c.className = "chip";
+  if (colour) { const d = document.createElement("span"); d.className = "dot"; d.style.background = colour; c.append(d); }
+  c.append(document.createTextNode(text));
+  return c;
+}
+function edgeSwatch(ri) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("width", "22"); s.setAttribute("height", "11"); s.setAttribute("viewBox", "0 0 22 11");
+  const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  p.setAttribute("d", R[ri].directed ? "M0 5.5H16M16 5.5l-4-3M16 5.5l-4 3" : "M0 5.5H21");
+  p.setAttribute("stroke", C.rel[ri]); p.setAttribute("stroke-width", "1.8"); p.setAttribute("fill", "none");
+  if (relDash[ri].length) p.setAttribute("stroke-dasharray", relDash[ri].join(" "));
+  s.append(p);
+  if (R[ri].directed) {
+    const h = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    h.setAttribute("d", "M16 5.5l-4.5-2.6v5.2z"); h.setAttribute("fill", C.rel[ri]);
+    s.append(h);
+  }
+  return s;
+}
+function nodeRow(j) {
+  const b = document.createElement("button");
+  b.className = "row" + (j === selected ? " sel" : "");
+  const d = document.createElement("span");
+  d.className = "dot" + (generic[j] ? " ring" : "");
+  d.style.background = C.node[grp[j]]; d.style.color = C.node[grp[j]];
+  const n = document.createElement("span");
+  n.className = "nm"; n.textContent = name[j]; n.title = name[j];
+  const c = document.createElement("span");
+  c.className = "ct"; c.textContent = deg[j];
+  b.append(d, n, c);
+  b.onmouseenter = () => { hover = j; if (selected < 0) refreshFocus(); draw(); };
+  b.onmouseleave = () => { hover = -1; if (selected < 0) refreshFocus(); draw(); };
+  b.onclick = () => { select(j); centerOn(j); };
+  return b;
+}
+document.getElementById("d-close").onclick = () => select(-1);
+
+/* ── sidebar ──────────────────────────────────────────────────────────────── */
+document.getElementById("ttl").textContent = DATA.meta.title;
+{
+  const sub = document.getElementById("sub");
+  const b = document.createElement("span");
+  b.className = "badge"; b.textContent = DATA.meta.kind;
+  sub.append(b);
+  if (DATA.meta.source) sub.append(Object.assign(document.createElement("span"), { textContent: DATA.meta.source }));
+  sub.append(Object.assign(document.createElement("span"), { textContent: "· " + DATA.meta.generated }));
+}
+// A curated graph carries real domains; a flat one is grouped by the clusters
+// the viewer detected, and says so.
+const GROUPS_ARE = DATA.meta.kind === "curated" ? "domains" : "clusters";
+document.getElementById("grp-noun").textContent = GROUPS_ARE[0].toUpperCase() + GROUPS_ARE.slice(1);
+document.getElementById("stats").innerHTML =
+  [[N, "concepts"], [M, "relations"], [G.length, GROUPS_ARE], [R.length, "types"]]
+    .map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+
+const results = document.getElementById("results");
+const qEl = document.getElementById("q");
+const byDegree = Array.from({ length: N }, (_, i) => i).sort((a, b) => deg[b] - deg[a] || name[a].localeCompare(name[b]));
+
+function norm(s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+const normName = name.map(norm);
+
+function renderResults() {
+  const q = norm(qEl.value.trim());
+  results.innerHTML = "";
+  let list;
+  if (q) {
+    list = byDegree.filter(i => normName[i].includes(q));
+    matches = new Set(list.filter(i => nodeOn[i]));
+    results.append(Object.assign(document.createElement("div"), {
+      className: "hint", textContent: `${list.length} match${list.length === 1 ? "" : "es"}`,
+    }));
+  } else {
+    list = byDegree;
+    matches = null;
+    results.append(Object.assign(document.createElement("div"), {
+      className: "hint", textContent: "All concepts, most connected first",
+    }));
+  }
+  const shown = list.slice(0, 250);
+  shown.forEach(i => { const r = nodeRow(i); if (!nodeOn[i]) r.classList.add("off"); results.append(r); });
+  if (list.length > shown.length)
+    results.append(Object.assign(document.createElement("div"), {
+      className: "more", textContent: `…and ${list.length - shown.length} more — refine the search`,
+    }));
+}
+qEl.addEventListener("input", () => { renderResults(); draw(); });
+
+const relsEl = document.getElementById("rels"), grpsEl = document.getElementById("grps");
+function renderLegend() {
+  relsEl.innerHTML = ""; grpsEl.innerHTML = "";
+  R.forEach((rel, i) => {
+    const b = document.createElement("button");
+    b.className = "row" + (relOn[i] ? "" : " off");
+    b.title = `${rel.key} — ${rel.directed ? "directed" : "symmetric"}` +
+      (rel.acyclic ? ", acyclic" : "") + (rel.use_in_embedding ? ", used in embeddings" : "");
+    const sw = document.createElement("span");
+    sw.className = "edge-swatch"; sw.append(edgeSwatch(i));
+    const n = document.createElement("span");
+    n.className = "nm"; n.textContent = rel.verbose;
+    const c = document.createElement("span");
+    c.className = "ct"; c.textContent = rel.count;
+    const only = document.createElement("span");
+    only.className = "only"; only.textContent = "only";
+    only.onclick = ev => { ev.stopPropagation(); relOn.fill(false); relOn[i] = true; commitFilters(); };
+    b.append(sw, n, c, only);
+    b.onclick = () => { relOn[i] = !relOn[i]; commitFilters(); };
+    relsEl.append(b);
+  });
+  G.forEach((group, i) => {
+    const b = document.createElement("button");
+    b.className = "row" + (grpOn[i] ? "" : " off");
+    b.title = group.name;
+    const d = document.createElement("span");
+    d.className = "dot"; d.style.background = C.node[i];
+    const n = document.createElement("span");
+    n.className = "nm"; n.textContent = group.name;
+    const c = document.createElement("span");
+    c.className = "ct"; c.textContent = group.count;
+    const only = document.createElement("span");
+    only.className = "only"; only.textContent = "only";
+    only.onclick = ev => { ev.stopPropagation(); grpOn.fill(false); grpOn[i] = true; commitFilters(); };
+    b.append(d, n, c, only);
+    b.onclick = () => { grpOn[i] = !grpOn[i]; commitFilters(); };
+    grpsEl.append(b);
+  });
+  const reset = document.createElement("div");
+  reset.className = "btn-row";
+  const all = document.createElement("button");
+  all.className = "btn"; all.textContent = `Show every ${GROUPS_ARE.slice(0, -1)}`;
+  all.onclick = () => { grpOn.fill(true); commitFilters(); };
+  reset.append(all);
+  grpsEl.append(reset);
+  document.getElementById("legend").textContent = [
+    `${G.length} ${GROUPS_ARE}`,
+    generic.some(v => v) ? "dashed ring = generic concept" : null,
+    "drag to move a node, double-click to zoom",
+  ].filter(Boolean).join(" · ");
+}
+function commitFilters() {
+  applyFilters();
+  if (selected >= 0 && !nodeOn[selected]) selected = -1;
+  refreshFocus();
+  renderLegend(); renderResults(); renderDetails();
+  kick(.45);
+}
+
+/* ── display controls ─────────────────────────────────────────────────────── */
+const cfg = document.getElementById("cfg");
+cfg.innerHTML = `
+  <div class="ctl"><label for="lbl">Labels</label>
+    <select id="lbl"><option value="auto">Auto</option><option value="all">All</option><option value="none">None</option></select></div>
+  <div class="ctl"><label for="sw-cluster">Cluster by domain</label><span class="switch on" id="sw-cluster" role="switch" tabindex="0"></span></div>
+  <div class="ctl"><label for="sw-arrows">Direction arrows</label><span class="switch on" id="sw-arrows" role="switch" tabindex="0"></span></div>
+  <div class="btn-row"><button class="btn" id="relayout">Recompute layout</button><button class="btn" id="unpin">Release pinned</button></div>
+  <div class="hint" style="padding-top:10px">
+    <kbd>/</kbd> search · <kbd>F</kbd> fit · <kbd>S</kbd> sidebar · <kbd>Esc</kbd> clear
+  </div>`;
+document.getElementById("lbl").onchange = e => { labelMode = e.target.value; draw(); };
+function toggleSwitch(el, fn) {
+  const run = () => { el.classList.toggle("on"); fn(el.classList.contains("on")); };
+  el.onclick = run;
+  el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(); } };
+}
+toggleSwitch(document.getElementById("sw-cluster"), on => { SIM.cluster = on; kick(.6); });
+toggleSwitch(document.getElementById("sw-arrows"), on => { showArrows = on; draw(); });
+document.getElementById("relayout").onclick = () => {
+  seed = (Date.now() % 1e7) | 0;
+  pinned.fill(0); seedLayout();
+  SIM.alpha = 1; framed = false; userCam = false;
+  settle(30); fit(); kick(1);
+};
+document.getElementById("unpin").onclick = () => { pinned.fill(0); kick(.4); };
+
+for (const s of document.querySelectorAll(".sec-head"))
+  s.onclick = () => s.parentElement.classList.toggle("closed");
+
+document.getElementById("toggle-panel").onclick = () => document.getElementById("panel").classList.toggle("collapsed");
+document.getElementById("fit").onclick = () => fit();
+document.getElementById("zin").onclick = () => zoomBy(1.4);
+document.getElementById("zout").onclick = () => zoomBy(1 / 1.4);
+document.getElementById("theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === "dark"
+    : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  readTheme(); renderLegend(); renderDetails(); draw();
+};
+document.getElementById("png").onclick = () => {
+  const scale = 2, c = document.createElement("canvas");
+  c.width = W * scale; c.height = H * scale;
+  const g = c.getContext("2d");
+  g.setTransform(scale, 0, 0, scale, 0, 0);
+  g.fillStyle = C.surface; g.fillRect(0, 0, W, H);
+  paint(g, false);
+  c.toBlob(blob => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (DATA.meta.title || "knowledge-graph").replace(/[^\w.-]+/g, "-").toLowerCase() + ".png";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+};
+
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
+    if (e.key === "Escape") { e.target.value = ""; e.target.blur(); renderResults(); draw(); }
+    return;
+  }
+  const key = e.key.toLowerCase();
+  if (e.key === "/") { e.preventDefault(); qEl.focus(); qEl.select(); }
+  else if (key === "f") fit();
+  else if (key === "s") document.getElementById("panel").classList.toggle("collapsed");
+  else if (key === "escape") { select(-1); qEl.value = ""; renderResults(); draw(); }
+  else if (key === "+" || key === "=") zoomBy(1.4);
+  else if (key === "-") zoomBy(1 / 1.4);
+});
+// The stage resizes whenever a side panel opens or collapses, which no window
+// resize event reports — observe the element itself.
+new ResizeObserver(() => resize()).observe(document.getElementById("stage"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (!document.documentElement.dataset.theme) { readTheme(); renderLegend(); renderDetails(); draw(); }
+});
+
+/* ── boot ─────────────────────────────────────────────────────────────────── */
+readTheme();
+applyFilters();
+seedLayout();
+renderLegend();
+renderResults();
+resize();
+// Pre-settle off-screen: the first paint shows a readable graph rather than a
+// hairball unfolding. With reduced motion the whole layout is resolved up front,
+// and the budget shrinks as the graph grows so boot stays snappy either way.
+settle(reduceMotion ? 420 : Math.max(40, Math.min(240, Math.round(26000 / Math.max(1, N)))));
+fit(false);
+// A gentle restart: the remaining motion reads as the graph finding its shape,
+// not as a hairball being flung across the screen.
+if (!reduceMotion) kick(.25);
+else { framed = true; draw(); }
+</script>
+</body>
+</html>

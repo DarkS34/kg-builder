@@ -94,6 +94,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("relations", help="print the active relation schema as the model sees it")
 
+    view = subparsers.add_parser(
+        "view", help="render any stage's graph as a self-contained HTML viewer and open it"
+    )
+    view.add_argument(
+        "graph",
+        type=Path,
+        nargs="?",
+        help="graph JSON to render (default: the latest stage present in --output-dir)",
+    )
+    view.add_argument("-o", "--output", type=Path, help="HTML file to write")
+    view.add_argument("--title", help="title shown in the viewer (default: the file's stem)")
+    view.add_argument("--no-open", action="store_true", help="write the file without opening it")
+
     return parser
 
 
@@ -131,6 +144,37 @@ def print_relations(schema: RelationSchema) -> None:
         )
 
 
+def resolve_view_source(config: BuilderConfig, explicit: Path | None) -> Path:
+    if explicit is not None:
+        return explicit
+    for candidate in (config.curated_path, config.cleaned_path, config.staging_path):
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        f"No graph found in {config.output_dir}/ — pass one explicitly, e.g. "
+        "`kg-builder view path/to/graph.json`"
+    )
+
+
+def run_view(args: argparse.Namespace, config: BuilderConfig, schema: RelationSchema) -> int:
+    from . import documents, visualization
+
+    try:
+        source = resolve_view_source(config, args.graph)
+        visualization.visualize(
+            documents.load_json(source),
+            args.output or config.viewer_path,
+            schema=schema,
+            title=args.title or source.stem.replace("_", " "),
+            source=source.name,
+            open_browser=not args.no_open,
+        )
+    except (OSError, ValueError) as e:
+        logger.error(str(e))
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging(args.quiet)
@@ -145,7 +189,13 @@ def main(argv: list[str] | None = None) -> int:
         print_relations(schema)
         return 0
 
-    builder = KnowledgeGraphBuilder(config=config_from_args(args), relations=schema)
+    config = config_from_args(args)
+
+    # Rendering reads a file the pipeline already wrote: no engine, no bootstrap.
+    if args.command == "view":
+        return run_view(args, config, schema)
+
+    builder = KnowledgeGraphBuilder(config=config, relations=schema)
 
     try:
         if not args.no_pull:
