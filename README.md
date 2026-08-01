@@ -43,7 +43,8 @@ uv run kg-builder curate                   # -> output/knowledge_graph_autogener
 With a different relation vocabulary — nothing else changes:
 
 ```bash
-uv run kg-builder --relations examples/spanish_relations.json all corpus
+uv run kg-builder --relations es all corpus                        # built-in Spanish schema
+uv run kg-builder --relations examples/spanish_relations.json all corpus   # or your own JSON
 ```
 
 `python -m kg_builder ...` works identically if you'd rather not install the script.
@@ -84,7 +85,22 @@ knowledge_graph.json
 
 ## Defining your own relations
 
-This is the point of the tool. A relation type carries both its **graph semantics** and its **prompt-facing explanation**:
+### Built-in schemas
+
+`--relations` takes either a built-in name or a path to your own JSON:
+
+| Name | Constant | Keys |
+| --- | --- | --- |
+| `en` (default) | `DEFAULT_RELATION_SCHEMA_EN` | `prerequisite`, `is_a`, `part_of`, `related_to` |
+| `es` | `DEFAULT_RELATION_SCHEMA_ES` | `prerrequisito`, `es_un`, `parte_de`, `relacionado` |
+
+They differ only in what surfaces downstream — `key`, `verbose` and `examples`. The `definition` and `reading` fields stay English in both, because they are embedded in this package's English prompt scaffolding; extraction still preserves the source language either way. Pick `es` when the consumer of the graph renders `details.verbose` into Spanish text, which is exactly what the curated output is for.
+
+`DEFAULT_RELATION_SCHEMA` remains an alias of the English one, so `KnowledgeGraphBuilder()` with no `relations=` is unchanged.
+
+### Your own vocabulary
+
+A relation type carries both its **graph semantics** and its **prompt-facing explanation**:
 
 | Field | Purpose |
 | --- | --- |
@@ -142,7 +158,7 @@ schema = RelationSchema(
 KnowledgeGraphBuilder(relations=schema).build("corpus")
 ```
 
-See `examples/custom_schema.py` for a schema that extends the default one instead of replacing it.
+See `examples/custom_schema.py` for a schema that extends a built-in one instead of replacing it.
 
 ### `fallback`
 
@@ -208,9 +224,9 @@ Every field of `BuilderConfig` has a CLI flag; the defaults are in `kg_builder/c
 | `chunk_size` | `--chunk-size` | `12000` | characters per extraction call. |
 | `max_repair_attempts` | — | `3` | JSON repair rounds before giving up on a chunk. |
 | `max_evidence_relations` | — | `6` | outgoing relations shown per node during cleanup. |
-| `merge_qualifier_pattern` | — | `None` | regex stripped before comparing names, e.g. `r"\s+in (python\|java)\b"` to merge `Lists in Python` into `Lists`. |
+| `merge_qualifier_pattern` | `--merge-qualifier-pattern` | `None` | regex stripped before comparing names, e.g. `r"\s+in (python\|java)\b"` to merge `Lists in Python` into `Lists`. |
 | `plural_suffixes` | — | `("s",)` | suffixes stripped when comparing names. |
-| `unclassified_domain` | — | `"Unclassified"` | bucket for concepts the model failed to place. |
+| `unclassified_domain` | `--unclassified-domain` | `"Unclassified"` | bucket for concepts the model failed to place. |
 | `output_dir` | `--output-dir` | `output` | where the three default filenames land. |
 
 Other flags: `--recursive` (walk subdirectories), `--quiet`, `--no-pull` (skip the model check and warmup).

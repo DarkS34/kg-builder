@@ -8,7 +8,7 @@ from loguru import logger
 
 from .builder import KnowledgeGraphBuilder
 from .config import NOISY_LOGGERS, NOISY_WARNING_MODULES, BuilderConfig
-from .relations import DEFAULT_RELATION_SCHEMA, RelationSchema
+from .relations import BUILTIN_SCHEMAS, DEFAULT_RELATION_SCHEMA, RelationSchema
 
 
 def setup_logging(quiet: bool = False) -> None:
@@ -46,15 +46,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--relations",
-        type=Path,
-        metavar="FILE",
-        help="JSON file describing the relation schema (default: the built-in English schema)",
+        metavar="NAME|FILE",
+        help=(
+            f"relation schema: a built-in name ({', '.join(sorted(BUILTIN_SCHEMAS))}) "
+            "or a path to a JSON file describing your own (default: en)"
+        ),
     )
     parser.add_argument("--host", help="Ollama host, e.g. localhost:11434 (env: OLLAMA_HOST)")
     parser.add_argument("--extraction-model", help="model used for extraction and global linking")
     parser.add_argument("--curation-model", help="model used for node cleanup and domain curation")
     parser.add_argument("--repair-model", help="model used to repair malformed JSON")
     parser.add_argument("--chunk-size", type=int, help="characters per extraction chunk")
+    parser.add_argument(
+        "--merge-qualifier-pattern",
+        metavar="REGEX",
+        help=r"regex stripped from node names before comparing them, e.g. '\s+in (python|java)\b'",
+    )
+    parser.add_argument(
+        "--unclassified-domain", help="name of the bucket for concepts the model failed to place"
+    )
     parser.add_argument(
         "--output-dir", type=Path, help="directory for the default output filenames"
     )
@@ -94,6 +104,8 @@ def config_from_args(args: argparse.Namespace) -> BuilderConfig:
         "repair_model": args.repair_model,
         "ollama_host": args.host,
         "chunk_size": args.chunk_size,
+        "merge_qualifier_pattern": args.merge_qualifier_pattern,
+        "unclassified_domain": args.unclassified_domain,
         "output_dir": args.output_dir,
     }
     return BuilderConfig(**{k: v for k, v in overrides.items() if v is not None})
@@ -102,7 +114,9 @@ def config_from_args(args: argparse.Namespace) -> BuilderConfig:
 def schema_from_args(args: argparse.Namespace) -> RelationSchema:
     if args.relations is None:
         return DEFAULT_RELATION_SCHEMA
-    return RelationSchema.from_json(args.relations)
+    if args.relations in BUILTIN_SCHEMAS:
+        return BUILTIN_SCHEMAS[args.relations]
+    return RelationSchema.from_json(Path(args.relations))
 
 
 def print_relations(schema: RelationSchema) -> None:

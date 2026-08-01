@@ -100,7 +100,7 @@ class RelationSchema:
         raise KeyError(key)
 
     def get(self, key: str) -> RelationType | None:
-        return self[key] if key in self else None
+        return self.get(key, None)
 
     def specific_keys(self) -> tuple[str, ...]:
         return tuple(key for key in self.keys if key != self.fallback)
@@ -141,7 +141,7 @@ class RelationSchema:
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
-DEFAULT_RELATION_SCHEMA = RelationSchema(
+DEFAULT_RELATION_SCHEMA_EN = RelationSchema(
     fallback="related_to",
     types=(
         RelationType(
@@ -206,3 +206,82 @@ DEFAULT_RELATION_SCHEMA = RelationSchema(
         ),
     ),
 )
+
+
+# Spanish counterpart. `key`, `verbose` and `examples` are translated because they
+# surface in the output and in the consumer's own prompts; `definition` and `reading`
+# stay English, since they are embedded in this package's English prompt scaffolding.
+DEFAULT_RELATION_SCHEMA_ES = RelationSchema(
+    fallback="relacionado",
+    types=(
+        RelationType(
+            key="prerrequisito",
+            verbose="tiene como prerrequisito",
+            definition=(
+                "the SOURCE presupposes or needs the TARGET; the TARGET must be mastered "
+                "BEFORE the SOURCE."
+            ),
+            reading="to learn SOURCE you must first know TARGET",
+            examples=(
+                ("Búsqueda binaria", "Lista ordenada"),
+                ("Multiplicación", "Suma"),
+                ("Cálculo integral", "Derivadas"),
+            ),
+            directed=True,
+            acyclic=True,
+            use_in_embedding=False,
+        ),
+        RelationType(
+            key="es_un",
+            verbose="es un tipo de",
+            definition="the SOURCE is a TYPE, case or subclass of the TARGET.",
+            reading="SOURCE is a kind of TARGET",
+            examples=(
+                ("Ballena", "Mamífero"),
+                ("Soneto", "Poema"),
+                ("Triángulo equilátero", "Triángulo"),
+            ),
+            directed=True,
+            acyclic=False,
+            use_in_embedding=True,
+        ),
+        RelationType(
+            key="parte_de",
+            verbose="es parte de",
+            definition="the SOURCE is a COMPONENT of the TARGET; the TARGET is the whole that contains it.",
+            reading="SOURCE is part of TARGET",
+            examples=(
+                ("Núcleo", "Célula"),
+                ("Estribillo", "Canción"),
+                ("Motor", "Automóvil"),
+            ),
+            directed=True,
+            acyclic=False,
+            use_in_embedding=True,
+        ),
+        RelationType(
+            key="relacionado",
+            verbose="se relaciona con",
+            definition=(
+                "a genuine semantic association that does not cleanly fit any of the types above."
+            ),
+            reading="SOURCE and TARGET are semantically associated",
+            examples=(
+                ("Oferta", "Demanda"),
+                ("Fotosíntesis", "Respiración celular"),
+            ),
+            directed=False,
+            acyclic=False,
+            use_in_embedding=True,
+        ),
+    ),
+)
+
+
+BUILTIN_SCHEMAS = {
+    "en": DEFAULT_RELATION_SCHEMA_EN,
+    "es": DEFAULT_RELATION_SCHEMA_ES,
+}
+
+DEFAULT_RELATION_SCHEMA = DEFAULT_RELATION_SCHEMA_ES
+
